@@ -1,0 +1,21 @@
+@import '@fontsource-variable/inter';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { font-family: 'Inter Variable', system-ui, sans-serif; }
+  body { @apply bg-surface text-ink-900 antialiased; }
+  :focus-visible { @apply outline-2 outline-offset-2 outline-brand-600; }
+}
+
+/* Printing: only the element marked .print-area is printed (receipts, barcode labels). */
+@media print {
+  body * { visibility: hidden !important; }
+  .print-area, .print-area * { visibility: visible !important; }
+  .print-area { position: absolute; left: 0; top: 0; box-shadow: none !important; border: 0 !important; }
+  .no-print { display: none !important; }
+  @page { margin: 3mm; }
+}
+.receipt-58 { width: 58mm; }
+.receipt-80 { width: 80mm; }
