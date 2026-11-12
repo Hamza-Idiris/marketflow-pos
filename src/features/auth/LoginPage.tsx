@@ -30,7 +30,7 @@ export function LoginPage() {
 
   const message = error ?? blockedMessage;
   return (
-    <AuthShell title="Sign in" subtitle="Use the email and password your administrator gave you.">
+    <AuthShell title="Sign in" subtitle="Use the email and password you set when creating your account.">
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
         {message && <Alert>{message}</Alert>}
         <Field label="Email" type="email" autoComplete="email" error={errors.email?.message} {...register('email')} />
@@ -42,6 +42,11 @@ export function LoginPage() {
       <p className="text-center text-sm">
         <Link to="/forgot-password" className="font-medium text-brand-600 hover:text-brand-700">
           Forgot your password?
+        </Link>
+      </p>
+      <p className="text-center text-sm">
+        <Link to="/signup" className="font-medium text-brand-600 hover:text-brand-700">
+          Invited by your supermarket? Create account
         </Link>
       </p>
     </AuthShell>

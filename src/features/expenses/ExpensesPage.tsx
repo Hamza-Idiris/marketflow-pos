@@ -20,7 +20,7 @@ const schema = z.object({ category: z.string().trim().min(1, 'Enter a category')
 
 export function ExpensesPage() {
   const storeId = useStoreId();
-  const { profile } = useAuth();
+  const { profile, isSupportView } = useAuth();
   const [page, setPage] = useState(0);
   const [from, setFrom] = useState(addDaysISO(todayISO(), -30));
   const [to, setTo] = useState(todayISO());
@@ -34,13 +34,13 @@ export function ExpensesPage() {
   const sums = (q.data?.rows ?? []).filter((r) => r.status === 'recorded').reduce<Record<string, number>>((a, r) => ({ ...a, [r.currency]: (a[r.currency] ?? 0) + Number(r.amount) }), {});
   return (
     <div className="mx-auto max-w-5xl">
-      <PageHeader title="Expenses" subtitle="Operating costs such as rent, electricity and wages." actions={<Button onClick={() => setAdding(true)}><Plus className="h-4 w-4" />Record expense</Button>} />
+      <PageHeader title="Expenses" subtitle="Operating costs such as rent, electricity and wages." actions={!isSupportView ? <Button onClick={() => setAdding(true)}><Plus className="h-4 w-4" />Record expense</Button> : undefined} />
       <div className="mb-4 grid max-w-md grid-cols-2 gap-3"><Field label="From" type="date" max={to} value={from} onChange={(e) => { setFrom(e.target.value); setPage(0); }} /><Field label="To" type="date" min={from} value={to} onChange={(e) => { setTo(e.target.value); setPage(0); }} /></div>
       {q.isLoading ? <TableSkeleton /> : q.isError ? <ErrorState onRetry={() => void q.refetch()} /> : q.data!.rows.length === 0 ? <EmptyState title="No expenses in this period" /> : <>
         <p className="mb-2 text-sm text-ink-500">On this page: {Object.entries(sums).map(([c, v]) => formatMoney(v, c as Currency)).join(' and ') || 'nothing recorded'}</p>
         <Table><thead><tr><Th>Date</Th><Th>Category</Th><Th>Description</Th><Th>By</Th><Th right>Amount</Th><Th>Status</Th><Th right /></tr></thead>
           <tbody>{q.data!.rows.map((r) => <tr key={r.id} className={r.status === 'cancelled' ? 'opacity-50' : ''}><Td>{formatDate(r.expense_date)}</Td><Td>{r.category}</Td><Td>{r.description}</Td><Td>{r.creator?.full_name}</Td><Td right>{formatMoney(r.amount, r.currency)}</Td>
-            <Td><Badge tone={r.status === 'recorded' ? 'green' : 'gray'}>{r.status}</Badge></Td><Td right>{r.status === 'recorded' && <Button variant="ghost" className="h-9" onClick={() => setCancelling(r)}>Cancel</Button>}</Td></tr>)}</tbody></Table>
+            <Td><Badge tone={r.status === 'recorded' ? 'green' : 'gray'}>{r.status}</Badge></Td><Td right>{!isSupportView && r.status === 'recorded' && <Button variant="ghost" className="h-9" onClick={() => setCancelling(r)}>Cancel</Button>}</Td></tr>)}</tbody></Table>
         <Pagination page={page} pageSize={PAGE} total={q.data!.total} onChange={setPage} /></>}
       {adding && <Add storeId={storeId} userId={profile!.id} onClose={() => setAdding(false)} />}
       {cancelling && <ConfirmDialog title="Cancel this expense?" message="It will no longer count in profit reports. The record is kept." confirmLabel="Cancel expense" danger loading={cancel.isPending} onConfirm={() => cancel.mutate(cancelling)} onClose={() => setCancelling(null)} />}

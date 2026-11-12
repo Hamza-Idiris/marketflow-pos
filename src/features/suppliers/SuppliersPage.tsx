@@ -31,8 +31,8 @@ export function useSuppliers(storeId: string) {
 
 export function SuppliersPage() {
   const storeId = useStoreId();
-  const { activeRole } = useAuth();
-  const canEdit = activeRole === 'admin';
+  const { activeRole, isSupportView } = useAuth();
+  const canEdit = activeRole === 'admin' && !isSupportView;
   const q = useSuppliers(storeId);
   const [editing, setEditing] = useState<Supplier | 'new' | null>(null);
   return (

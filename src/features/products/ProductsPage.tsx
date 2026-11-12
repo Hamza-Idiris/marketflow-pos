@@ -38,7 +38,8 @@ export function useCatalogLookups(storeId: string) {
 
 export function ProductsPage() {
   const storeId = useStoreId();
-  const canEdit = useAuth().activeRole === 'admin';
+  const { activeRole, isSupportView } = useAuth();
+  const canEdit = activeRole === 'admin' && !isSupportView;
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');

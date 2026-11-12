@@ -4,12 +4,15 @@ import { supabase } from '@/lib/supabase';
 import { rpc } from '@/lib/rpc';
 import { useAction } from '@/hooks/useAction';
 import { useStoreId } from '@/hooks/useStore';
+import { useAuth } from '@/features/auth/AuthProvider';
 import { Button, Card, Field, Skeleton } from '@/components/ui';
 import { ErrorState, PageHeader, TextArea } from '@/components/kit';
 import { formatDateTime } from '@/lib/format';
+import { StoreAccessBanner } from '@/features/supermarkets/StoreAccessBanner';
 
 export function SettingsPage() {
   const storeId = useStoreId();
+  const { isSuperAdmin, isSupportView, activeRole } = useAuth();
   const q = useQuery({
     queryKey: ['settings', storeId],
     queryFn: async () => {
@@ -36,26 +39,29 @@ export function SettingsPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-5">
       <PageHeader title="Settings" />
+      {!isSuperAdmin && activeRole === 'admin' && <StoreAccessBanner storeId={storeId} />}
       <Card className="space-y-4">
         <h2 className="font-semibold">Store details (shown on receipts)</h2>
-        <Field label="Name" value={f.name} onChange={set('name')} />
-        <div className="grid gap-4 sm:grid-cols-2"><Field label="Phone" value={f.phone} onChange={set('phone')} /><Field label="Email" value={f.email} onChange={set('email')} /></div>
-        <Field label="Address" value={f.address} onChange={set('address')} />
-        <Button disabled={f.name.trim().length < 2} loading={saveStore.isPending} onClick={() => saveStore.mutate(undefined)}>Save details</Button>
+        <Field label="Name" value={f.name} onChange={set('name')} disabled={isSupportView} />
+        <div className="grid gap-4 sm:grid-cols-2"><Field label="Phone" value={f.phone} onChange={set('phone')} disabled={isSupportView} /><Field label="Email" value={f.email} onChange={set('email')} disabled={isSupportView} /></div>
+        <Field label="Address" value={f.address} onChange={set('address')} disabled={isSupportView} />
+        {!isSupportView && <Button disabled={f.name.trim().length < 2} loading={saveStore.isPending} onClick={() => saveStore.mutate(undefined)}>Save details</Button>}
       </Card>
       <Card className="space-y-4">
         <h2 className="font-semibold">Receipts and alerts</h2>
-        <Field label="Warn about expiry (days before)" type="number" min={1} max={365} value={f.days} onChange={set('days')} error={days >= 1 && days <= 365 ? undefined : 'Enter 1 to 365'} />
-        <TextArea label="Receipt thank-you message" value={f.footer} onChange={set('footer')} />
-        <Button disabled={!(days >= 1 && days <= 365)} loading={saveSettings.isPending} onClick={() => saveSettings.mutate(undefined)}>Save settings</Button>
+        <Field label="Warn about expiry (days before)" type="number" min={1} max={365} value={f.days} onChange={set('days')} error={days >= 1 && days <= 365 ? undefined : 'Enter 1 to 365'} disabled={isSupportView} />
+        <TextArea label="Receipt thank-you message" value={f.footer} onChange={set('footer')} disabled={isSupportView} />
+        {!isSupportView && <Button disabled={!(days >= 1 && days <= 365)} loading={saveSettings.isPending} onClick={() => saveSettings.mutate(undefined)}>Save settings</Button>}
       </Card>
       <Card className="space-y-4">
         <h2 className="font-semibold">Exchange rate</h2>
         <p className="text-sm text-ink-500">Convention: how many SOS equal 1 USD. Each sale stores the rate used, so changing it never alters past receipts.</p>
-        <div className="flex items-end gap-3">
-          <div className="flex-1"><Field label="New rate (SOS per 1 USD)" type="number" min={0} step="0.01" value={f.rate} onChange={set('rate')} /></div>
-          <Button disabled={!(Number(f.rate) > 0)} loading={saveRate.isPending} onClick={() => saveRate.mutate(undefined)}>Save rate</Button>
-        </div>
+        {!isSupportView && (
+          <div className="flex items-end gap-3">
+            <div className="flex-1"><Field label="New rate (SOS per 1 USD)" type="number" min={0} step="0.01" value={f.rate} onChange={set('rate')} /></div>
+            <Button disabled={!(Number(f.rate) > 0)} loading={saveRate.isPending} onClick={() => saveRate.mutate(undefined)}>Save rate</Button>
+          </div>
+        )}
         {q.data!.rates.length === 0 ? <p className="text-sm text-amber-700">No rate set yet. Mixed-currency payments cannot be used until you set one.</p> : (
           <ul className="divide-y divide-slate-100 text-sm">
             {q.data!.rates.map((r, i) => <li key={r.id} className="flex justify-between py-2"><span>{Number(r.sos_per_usd).toLocaleString()} SOS / USD{i === 0 && <span className="ml-2 text-xs font-medium text-green-700">current</span>}</span><span className="text-ink-500">{formatDateTime(r.created_at)}</span></li>)}

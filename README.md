@@ -1,6 +1,6 @@
 # Supermarket POS (multi-store)
 
-React + TypeScript + Vite + Tailwind on Supabase (Postgres, Auth, RLS, RPC, Storage, Edge Functions).
+React + TypeScript + Vite + Tailwind on Supabase (Postgres, Auth, RLS, RPC, Storage).
 **Status: all 8 phases built.** See "Verification status" below for exactly what has and has not been tested.
 
 ## Modules
@@ -16,8 +16,10 @@ Expenses · Reports with CSV export and charts · Barcode labels · Settings and
 2. `npm install`
 3. Database (local): `supabase start && supabase db reset` (applies `supabase/migrations/*` then `seed.sql`).
    Hosted: `supabase link --project-ref <ref> && supabase db push`. **Never run `seed.sql` in production.**
-4. Edge function (employee invitations): `supabase functions deploy invite-user` and set the secret `SITE_URL` (your app's URL).
-   `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are provided to functions automatically; the service-role key never reaches the browser.
+4. Apply migrations: `supabase db push` (or `supabase db reset` locally). Keep **Confirm email** enabled in Supabase Auth settings.
+   Invitation flow: the admin enters email + role; if the account already exists and is confirmed, access is granted at once.
+   Otherwise a pending invitation is stored — the person must go to `/signup`, create an account with that exact email, and confirm it;
+   the invitation is claimed automatically when the email is confirmed. No Edge Function or service-role key is needed.
 5. `npm run dev`
 
 ### Local demo users (password `Passw0rd!demo`)
@@ -49,8 +51,7 @@ Run here, all passing:
   idempotency, discount limit, exact/split payments, rollback, shifts, refunds, voids, reports, cost privacy), and a **real two-session concurrency test** (`003`:
   two cashiers selling the same stock at once, exactly one succeeds).
 
-**Not** run here (please do on first setup): the app in a browser against a real Supabase project; Supabase Storage policies and image upload; the `invite-user`
-Edge Function (needs Supabase's Auth service); email delivery; the seed's `auth.users`/`auth.identities` inserts (the catalog half was tested, the user half was not);
+**Not** run here (please do on first setup): the app in a browser against a real Supabase project; Supabase Storage policies and image upload; email delivery; the seed's `auth.users`/`auth.identities` inserts (the catalog half was tested, the user half was not);
 real USB scanners and thermal printers. The React screens are type-checked and linted but have no automated browser tests.
 
 ## Checks
@@ -61,7 +62,7 @@ DB_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres npm run test:db  
 
 ## Deployment
 - Frontend: any static host (Vercel, Netlify, Cloudflare Pages). Build `npm run build`, output `dist`, set the two `VITE_` variables, add an SPA fallback to `index.html`.
-- Supabase: Auth > URL Configuration (site URL and redirect `https://your-domain/reset-password`), configure SMTP, `supabase db push`, deploy the function.
+- Supabase: Auth > URL Configuration (site URL and redirect `https://your-domain/reset-password`), configure SMTP, `supabase db push`.
 
 ## Integrations that still need real credentials
 SMTP email for invitations/resets (Supabase's built-in sender is rate-limited) · EVC Plus / Sahal / Zaad payment verification APIs · thermal printer drivers if you want silent printing.

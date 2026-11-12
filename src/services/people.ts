@@ -1,14 +1,23 @@
-import { supabase } from '@/lib/supabase';
+import { rpc } from '@/lib/rpc';
 import type { Role } from '@/types/database';
 
-export async function inviteUser(args: { store: string; email: string; full_name: string; role: Role; max_discount?: number }) {
-  const { data, error } = await supabase.functions.invoke('invite-user', { body: args });
-  if (error) {
-    // Edge function errors carry a JSON body with a readable message.
-    let msg = error.message;
-    try { const b = await (error as unknown as { context: Response }).context.json(); if (b?.error) msg = b.error; } catch { /* keep generic */ }
-    throw new Error(msg);
-  }
-  if (data?.error) throw new Error(data.error);
-  return data;
+export async function inviteMember(args: {
+  store: string;
+  email: string;
+  full_name: string;
+  role: Role;
+  max_discount?: number;
+}): Promise<'added' | 'invited'> {
+  return rpc<'added' | 'invited'>('invite_member', {
+    p_store: args.store,
+    p_email: args.email,
+    p_full_name: args.full_name,
+    p_role: args.role,
+    p_max_discount: args.role === 'cashier' ? (args.max_discount ?? 0) : 0,
+  });
+}
+
+export function inviteMessage(result: 'added' | 'invited'): string {
+  if (result === 'added') return 'Added. They can sign in now.';
+  return 'Invitation saved. Ask them to create an account with this exact email, then sign in.';
 }

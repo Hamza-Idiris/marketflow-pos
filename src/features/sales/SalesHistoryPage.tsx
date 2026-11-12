@@ -18,8 +18,8 @@ const TONE: Record<string, 'green' | 'amber' | 'red' | 'gray'> = { completed: 'g
 
 export function SalesHistoryPage() {
   const storeId = useStoreId();
-  const { activeRole } = useAuth();
-  const isAdmin = activeRole === 'admin';
+  const { activeRole, isSupportView } = useAuth();
+  const isAdmin = activeRole === 'admin' && !isSupportView;
   const [page, setPage] = useState(0);
   const [from, setFrom] = useState(addDaysISO(todayISO(), -7));
   const [to, setTo] = useState(todayISO());
