@@ -131,15 +131,67 @@ export function PosPage() {
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
           {filtered.length === 0 ? <EmptyState title="No products found" hint="Check the spelling or clear the category filter." /> : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-              {filtered.map((p) => { const price = priceOf(p, currency); const out = p.available <= 0; const low = !out && p.available <= p.min_stock; const disabled = out || price === null;
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 auto-rows-fr">
+              {filtered.map((p) => {
+                const price = priceOf(p, currency);
+                const out = p.available <= 0;
+                const low = !out && p.available <= p.min_stock;
+                const disabled = out || price === null;
                 return (
-                  <button key={p.product_id} disabled={disabled} onClick={() => add(p)} className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white text-left shadow-card transition hover:border-brand-500 disabled:cursor-not-allowed disabled:opacity-50">
-                    <div className="grid h-24 place-items-center bg-slate-100">{p.image_path ? <img src={imageUrl(p.image_path)!} alt="" className="h-full w-full object-cover" /> : <Package className="h-8 w-8 text-ink-300" />}</div>
-                    <div className="p-3"><div className="line-clamp-2 text-sm font-medium leading-tight">{p.name}</div>
-                      <div className="mt-1 font-semibold text-brand-700">{price === null ? `No ${currency} price` : formatMoney(price, currency)}</div>
-                      <div className={`text-xs ${out ? 'text-red-600' : low ? 'text-amber-700' : 'text-ink-500'}`}>{out ? 'Out of stock' : `${formatQty(p.available)} available${low ? ' (low)' : ''}`}</div></div>
-                  </button>); })}
+                  <button
+                    key={p.product_id}
+                    disabled={disabled}
+                    onClick={() => add(p)}
+                    className="group flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/90 bg-white text-left shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-brand-500 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-sm"
+                  >
+                    {/* Fixed aspect image container so all cards match perfectly */}
+                    <div className="relative aspect-[4/3] w-full overflow-hidden bg-slate-100">
+                      {p.image_path ? (
+                        <img
+                          src={imageUrl(p.image_path)!}
+                          alt={p.name}
+                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-slate-50 text-slate-300">
+                          <Package className="h-10 w-10" />
+                        </div>
+                      )}
+                      {/* Availability pill badge on top of image */}
+                      <div className="absolute left-2 top-2">
+                        <span
+                          className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold tracking-wide backdrop-blur-md shadow-xs ${
+                            out
+                              ? 'bg-rose-500/90 text-white'
+                              : low
+                                ? 'bg-amber-500/90 text-white'
+                                : 'bg-slate-900/70 text-white'
+                          }`}
+                        >
+                          {out ? 'Out of stock' : `${formatQty(p.available)} left`}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Card Body */}
+                    <div className="flex flex-1 flex-col justify-between p-3.5">
+                      <div className="line-clamp-2 min-h-[2.5rem] text-sm font-semibold text-slate-800 transition-colors group-hover:text-brand-600">
+                        {p.name}
+                      </div>
+
+                      <div className="mt-2.5 flex items-baseline justify-between pt-1 border-t border-slate-100">
+                        <span className="text-base font-bold tracking-tight text-brand-600">
+                          {price === null ? `No ${currency}` : formatMoney(price, currency)}
+                        </span>
+                        <span className="text-[11px] font-medium text-slate-400 uppercase">
+                          {currency}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>)}
         </div>
       </section>

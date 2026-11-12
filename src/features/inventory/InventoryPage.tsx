@@ -26,7 +26,7 @@ export function useExpiryDays(storeId: string) {
 
 export function InventoryPage() {
   const storeId = useStoreId();
-  const { activeRole } = useAuth();
+  const { activeRole, isSupportView } = useAuth();
   const [tab, setTab] = useState<Tab>('products');
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
@@ -59,7 +59,7 @@ export function InventoryPage() {
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader title="Inventory" subtitle={tab === 'products' && overview.data ? `Stock value: ${formatMoney(totals.usd, 'USD')} and ${formatMoney(totals.sos, 'SOS')} at purchase cost (shown separately by cost currency).` : 'Stock on hand, lots and movements.'}
-        actions={<Link to="/receiving" className="inline-flex h-11 items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700"><PackagePlus className="h-4 w-4" />Receive stock</Link>} />
+        actions={!isSupportView ? <Link to="/receiving" className="inline-flex h-11 items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700"><PackagePlus className="h-4 w-4" />Receive stock</Link> : undefined} />
       <div className="mb-4 flex gap-1 border-b border-slate-200">
         {(['products', 'lots', 'movements'] as Tab[]).map((t) => <button key={t} onClick={() => setTab(t)} className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium ${tab === t ? 'border-brand-600 text-brand-700' : 'border-transparent text-ink-500 hover:text-ink-900'}`}>{{ products: 'By product', lots: 'Lots and expiry', movements: 'Movements' }[t]}</button>)}
       </div>
@@ -76,12 +76,12 @@ export function InventoryPage() {
           <Pagination page={page} pageSize={PAGE} total={rows.length} onChange={setPage} /></>}
       </>}
       {tab === 'lots' && (lots.isLoading ? <TableSkeleton /> : lots.isError ? <ErrorState onRetry={() => void lots.refetch()} /> : lots.data!.length === 0 ? <EmptyState title="No stock lots" /> : (
-        <Table><thead><tr><Th>Product</Th><Th>Lot</Th><Th>Received</Th><Th>Expiry</Th><Th right>Remaining</Th><Th right>Unit cost</Th>{activeRole === 'admin' && <Th right>Action</Th>}</tr></thead>
+        <Table><thead><tr><Th>Product</Th><Th>Lot</Th><Th>Received</Th><Th>Expiry</Th><Th right>Remaining</Th><Th right>Unit cost</Th>{activeRole === 'admin' && !isSupportView && <Th right>Action</Th>}</tr></thead>
           <tbody>{lots.data!.map((l) => { const expired = !!l.expiry_date && l.expiry_date < todayISO(); const soon = !!l.expiry_date && !expired && l.expiry_date <= warnBy; return (
             <tr key={l.id}><Td className="font-medium">{l.product?.name}</Td><Td>{l.lot_number ?? '-'}</Td><Td>{formatDate(l.received_at)}</Td>
               <Td>{l.expiry_date ? <>{formatDate(l.expiry_date)} {expired ? <Badge tone="red">Expired</Badge> : soon ? <Badge tone="amber">Soon</Badge> : null}</> : '-'}</Td>
               <Td right>{formatQty(l.quantity_remaining)} / {formatQty(l.quantity_received)}</Td><Td right>{Number(l.unit_cost).toLocaleString()} {l.cost_currency}</Td>
-              {activeRole === 'admin' && <Td right><Button variant="secondary" className="h-9" onClick={() => setAdjust(l)}>{expired ? 'Write off' : 'Adjust'}</Button></Td>}</tr>); })}</tbody></Table>))}
+              {activeRole === 'admin' && !isSupportView && <Td right><Button variant="secondary" className="h-9" onClick={() => setAdjust(l)}>{expired ? 'Write off' : 'Adjust'}</Button></Td>}</tr>); })}</tbody></Table>))}
       {tab === 'movements' && (moves.isLoading ? <TableSkeleton /> : moves.isError ? <ErrorState onRetry={() => void moves.refetch()} /> : moves.data!.length === 0 ? <EmptyState title="No movements yet" /> : (
         <Table><thead><tr><Th>When</Th><Th>Product</Th><Th>Type</Th><Th right>Quantity</Th><Th>Reason</Th></tr></thead>
           <tbody>{moves.data!.map((m) => <tr key={m.id}><Td>{formatDateTime(m.created_at)}</Td><Td className="font-medium">{m.product?.name}</Td><Td><Badge>{m.movement_type.replace('_', ' ')}</Badge></Td><Td right><span className={Number(m.quantity) < 0 ? 'text-red-600' : 'text-green-700'}>{Number(m.quantity) > 0 ? '+' : ''}{formatQty(m.quantity)}</span></Td><Td>{m.reason ?? ''}</Td></tr>)}</tbody></Table>))}

@@ -18,7 +18,7 @@ interface Line { product_id: string; po_item_id?: string; quantity: string; cost
 
 export function ReceivingPage() {
   const storeId = useStoreId();
-  const { activeRole } = useAuth();
+  const { activeRole, isSupportView } = useAuth();
   const nav = useNavigate();
   const [params] = useSearchParams();
   const poId = params.get('po');
@@ -76,12 +76,12 @@ export function ReceivingPage() {
               {l.outstanding !== undefined && Number(l.quantity) > l.outstanding && <p className="mt-2 text-sm text-amber-700">More than the {l.outstanding} still outstanding on the order.</p>}
             </div>
           ))}
-          {!poId && <Button variant="secondary" className="h-9" onClick={() => setLines((ls) => [...ls, { product_id: '', quantity: '', cost: '', currency: 'USD', lot: '', expiry: '' }])}><Plus className="h-4 w-4" />Add product</Button>}
+          {!poId && !isSupportView && <Button variant="secondary" className="h-9" onClick={() => setLines((ls) => [...ls, { product_id: '', quantity: '', cost: '', currency: 'USD', lot: '', expiry: '' }])}><Plus className="h-4 w-4" />Add product</Button>}
         </div>
         <TextArea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-        {poId && activeRole === 'admin' && <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="h-4 w-4" checked={override} onChange={(e) => setOverride(e.target.checked)} />Allow receiving more than the outstanding order quantity (admin override)</label>}
+        {poId && activeRole === 'admin' && !isSupportView && <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="h-4 w-4" checked={override} onChange={(e) => setOverride(e.target.checked)} />Allow receiving more than the outstanding order quantity (admin override)</label>}
         {poId && po.data && po.data.items.every((i) => Number(i.quantity_ordered) <= Number(i.quantity_received)) && <Alert tone="info">Everything on this order has already been received.</Alert>}
-        <div className="flex justify-end"><Button disabled={!valid} loading={receive.isPending} onClick={() => receive.mutate(undefined)}>Receive stock</Button></div>
+        {!isSupportView && <div className="flex justify-end"><Button disabled={!valid} loading={receive.isPending} onClick={() => receive.mutate(undefined)}>Receive stock</Button></div>}
       </Card>
     </div>
   );

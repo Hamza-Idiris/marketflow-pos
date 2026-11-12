@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, NavLink, Outlet } from 'react-router-dom';
+import { Bell, ChevronDown, Eye, LogOut, Menu, ShoppingBasket, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { addDaysISO, todayISO } from '@/lib/format';
-import { NavLink, Outlet } from 'react-router-dom';
-import { Bell, ChevronDown, LogOut, Menu, ShoppingBasket, X } from 'lucide-react';
+import { addDaysISO, formatDateTime, todayISO } from '@/lib/format';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { NAV_ITEMS, navForUser } from '@/lib/navigation';
 import { cn } from '@/utils/cn';
@@ -12,32 +11,32 @@ import { cn } from '@/utils/cn';
 const ROLE_LABEL = { admin: 'Supermarket admin', stock_staff: 'Stock staff', cashier: 'Cashier' } as const;
 
 export function AppLayout() {
-  const { profile, isSuperAdmin, memberships, activeStore, activeRole, selectStore, signOut } = useAuth();
+  const { profile, isSuperAdmin, memberships, activeStore, activeRole, isSupportView, activeGrant, activeGrants, selectStore, signOut } = useAuth();
   const [open, setOpen] = useState(false);
   const [menu, setMenu] = useState(false);
   const items = navForUser(NAV_ITEMS, { isSuperAdmin, role: activeRole });
-  const roleText = isSuperAdmin ? 'Super admin' : activeRole ? ROLE_LABEL[activeRole] : 'No role assigned';
+  const roleText = isSupportView ? 'Super admin (Support view)' : isSuperAdmin ? 'Super admin' : activeRole ? ROLE_LABEL[activeRole] : 'No role assigned';
 
   const nav = (
     <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="Main">
       {items.map(({ to, label, icon: Icon, section }, idx) => (
         <div key={to}>
-        {isSuperAdmin && activeRole === null ? null : section && section !== items[idx - 1]?.section && idx > 0 && <p className="px-3 pb-1 pt-4 text-xs font-semibold uppercase tracking-wide text-ink-500">{section}</p>}
-        <NavLink
-          key={to}
-          to={to}
-          end
-          onClick={() => setOpen(false)}
-          className={({ isActive }) =>
-            cn(
-              'flex h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium',
-              isActive ? 'bg-brand-50 text-brand-700' : 'text-ink-700 hover:bg-slate-100',
-            )
-          }
-        >
-          <Icon className="h-5 w-5" />
-          {label}
-        </NavLink>
+          {isSuperAdmin && activeRole === null ? null : section && section !== items[idx - 1]?.section && idx > 0 && <p className="px-3 pb-1 pt-4 text-xs font-semibold uppercase tracking-wide text-ink-500">{section}</p>}
+          <NavLink
+            key={to}
+            to={to}
+            end
+            onClick={() => setOpen(false)}
+            className={({ isActive }) =>
+              cn(
+                'flex h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium',
+                isActive ? 'bg-brand-50 text-brand-700' : 'text-ink-700 hover:bg-slate-100',
+              )
+            }
+          >
+            <Icon className="h-5 w-5" />
+            {label}
+          </NavLink>
         </div>
       ))}
     </nav>
@@ -66,12 +65,56 @@ export function AppLayout() {
       )}
 
       <div className="flex min-w-0 flex-col">
+        {/* Persistent read-only support banner for super admins with an active grant */}
+        {isSupportView && activeGrant && (
+          <div className="flex items-center justify-between gap-3 bg-amber-500 px-4 py-2.5 text-sm font-medium text-white shadow-sm">
+            <div className="flex items-center gap-2 truncate">
+              <Eye className="h-4 w-4 shrink-0" />
+              <span className="truncate">
+                <strong>SUPPORT VIEW:</strong> You have temporary read-only access to{' '}
+                <span className="underline">{activeStore?.supermarket.name}</span>. Access expires at{' '}
+                <span className="font-semibold">{formatDateTime(activeGrant.expires_at!)}</span>.
+              </span>
+            </div>
+            <button
+              onClick={() => selectStore('')}
+              className="shrink-0 rounded-lg bg-amber-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-amber-700 transition-colors"
+            >
+              Exit support view
+            </button>
+          </div>
+        )}
+
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-slate-200 bg-white px-4">
           <button onClick={() => setOpen(true)} aria-label="Open menu" className="rounded-lg p-2 hover:bg-slate-100 lg:hidden">
             <Menu className="h-5 w-5" />
           </button>
 
-          {memberships.length > 1 ? (
+          {/* Store switcher */}
+          {isSuperAdmin ? (
+            activeGrants.length > 0 || memberships.length > 0 ? (
+              <select
+                aria-label="Switch supermarket"
+                value={activeStore?.supermarket_id ?? ''}
+                onChange={(e) => selectStore(e.target.value)}
+                className="h-10 max-w-[15rem] rounded-xl border border-ink-300 bg-white px-3 text-sm font-medium"
+              >
+                <option value="">Platform</option>
+                {memberships.map((m) => (
+                  <option key={m.supermarket_id} value={m.supermarket_id}>
+                    {m.supermarket.name}
+                  </option>
+                ))}
+                {activeGrants.map((g) => (
+                  <option key={g.supermarket_id} value={g.supermarket_id}>
+                    Support view: {g.supermarket?.name ?? 'Store'}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="truncate text-sm font-semibold">Platform</span>
+            )
+          ) : memberships.length > 1 ? (
             <select
               aria-label="Switch supermarket"
               value={activeStore?.supermarket_id ?? ''}
@@ -85,7 +128,7 @@ export function AppLayout() {
               ))}
             </select>
           ) : (
-            <span className="truncate text-sm font-semibold">{activeStore?.supermarket.name ?? (isSuperAdmin ? 'Platform' : 'No supermarket')}</span>
+            <span className="truncate text-sm font-semibold">{activeStore?.supermarket.name ?? 'No supermarket'}</span>
           )}
 
           <div className="ml-auto flex items-center gap-1">
@@ -137,11 +180,10 @@ function Brand() {
   );
 }
 
-
 function NotificationsBell() {
-  const { activeStore, activeRole } = useAuth();
+  const { activeStore, activeRole, isSupportView } = useAuth();
   const [open, setOpen] = useState(false);
-  const enabled = !!activeStore && (activeRole === 'admin' || activeRole === 'stock_staff');
+  const enabled = !isSupportView && !!activeStore && (activeRole === 'admin' || activeRole === 'stock_staff');
   const storeId = activeStore?.supermarket_id ?? '';
   const q = useQuery({
     queryKey: ['inventory', 'alerts', storeId], enabled,

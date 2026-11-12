@@ -6,6 +6,7 @@ import { ProtectedRoute, PublicOnlyRoute, RequireAccess } from '@/features/auth/
 import { LoginPage } from '@/features/auth/LoginPage';
 import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage';
+import { SignUpPage } from '@/features/auth/SignUpPage';
 import { AppLayout } from '@/layouts/AppLayout';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
 import { SupermarketsPage } from '@/features/supermarkets/SupermarketsPage';
@@ -46,6 +47,7 @@ export function App() {
             <Route element={<PublicOnlyRoute />}>
               <Route path="/login" element={<LoginPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/signup" element={<SignUpPage />} />
             </Route>
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route element={<ProtectedRoute />}>

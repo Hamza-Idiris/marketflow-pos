@@ -6,11 +6,12 @@ import { rpc } from '@/lib/rpc';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { Alert, Card, Skeleton } from '@/components/ui';
 import { Badge, ErrorState } from '@/components/kit';
-import { addDaysISO, formatDateTime, formatMoney, formatQty, METHOD_LABEL, todayISO } from '@/lib/format';
+import { addDaysISO, formatDateTime, formatMoney, METHOD_LABEL, todayISO } from '@/lib/format';
 import { usePeriods, useProfit } from '@/features/reports/ReportsPage';
 import { usePlatform } from '@/features/reports/PlatformReportsPage';
 import { useExpiryDays } from '@/features/inventory/InventoryPage';
 import { useOpenShift } from '@/features/shifts/useShift';
+import { StoreAccessBanner } from '@/features/supermarkets/StoreAccessBanner';
 import type { Currency } from '@/types/database';
 
 function Stat({ label, value, hint, loading }: { label: string; value: string; hint?: string; loading?: boolean }) {
@@ -41,36 +42,107 @@ function AdminDashboard({ storeId }: { storeId: string }) {
   const today = todayISO();
   const profit = useProfit(storeId, today, today);
   const trend = usePeriods(storeId, addDaysISO(today, -13), today, 'day');
-  const days = useExpiryDays(storeId).data ?? 30;
   const stock = useQuery({ queryKey: ['inventory', 'alerts', storeId], queryFn: async () => { const { data, error } = await supabase.from('inventory_overview').select('name, available, min_stock, next_expiry').eq('supermarket_id', storeId).eq('is_active', true); if (error) throw error; return data as Array<{ name: string; available: number; min_stock: number; next_expiry: string | null }>; } });
   const recent = useQuery({ queryKey: ['sales', 'recent', storeId], queryFn: async () => { const { data, error } = await supabase.from('sales').select('id, receipt_number, total, currency, created_at, status, cashier:profiles(full_name)').eq('supermarket_id', storeId).order('created_at', { ascending: false }).limit(6); if (error) throw error; return data as unknown as Array<{ id: string; receipt_number: string; total: number; currency: Currency; created_at: string; status: string; cashier: { full_name: string } | null }>; } });
   const purchases = useQuery({ queryKey: ['purchase-orders', 'recent', storeId], queryFn: async () => { const { data, error } = await supabase.from('purchase_orders').select('id, reference, status, created_at, supplier:suppliers(name)').eq('supermarket_id', storeId).order('created_at', { ascending: false }).limit(5); if (error) throw error; return data as unknown as Array<{ id: string; reference: string | null; status: string; created_at: string; supplier: { name: string } | null }>; } });
   const pay = useQuery({ queryKey: ['report', 'pay-today', storeId, today], queryFn: async () => rpc<Array<{ label: string; currency: Currency; quantity: number; amount: number }>>('report_sales_breakdown', { p_store: storeId, p_from: today, p_to: today, p_dim: 'payment_method' }) });
   const cashiers = useQuery({ queryKey: ['report', 'cashier-today', storeId, today], queryFn: async () => rpc<Array<{ label: string; currency: Currency; quantity: number; amount: number }>>('report_sales_breakdown', { p_store: storeId, p_from: today, p_to: today, p_dim: 'cashier' }) });
   const todayRows = (trend.data ?? []).filter((p) => p.period === today);
-  const count = todayRows.reduce((s, p) => s + Number(p.sales_count), 0);
-  const warnBy = addDaysISO(today, days);
-  const low = (stock.data ?? []).filter((p) => Number(p.available) <= Number(p.min_stock));
-  const expiring = (stock.data ?? []).filter((p) => p.next_expiry && p.next_expiry <= warnBy);
-  const trendData = Array.from({ length: 14 }, (_, i) => { const d = addDaysISO(today, -13 + i); return { date: d.slice(5), USD: Number((trend.data ?? []).find((p) => p.period === d && p.currency === 'USD')?.net_sales ?? 0) }; });
   return (
     <div className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {CURS.map((c) => <Stat key={c} label={`Today's net sales (${c})`} value={formatMoney(todayRows.find((p) => p.currency === c)?.net_sales ?? 0, c)} loading={trend.isLoading} />)}
-        <Stat label="Completed transactions today" value={String(count)} loading={trend.isLoading} />
-        <Stat label="Estimated operating result today" value={formatMoney(profit.data?.find((p) => p.currency === 'USD')?.operating_result ?? 0, 'USD')} hint={`and ${formatMoney(profit.data?.find((p) => p.currency === 'SOS')?.operating_result ?? 0, 'SOS')}. Estimate: FIFO gross profit minus recorded expenses.`} loading={profit.isLoading} />
+        {CURS.map((c) => {
+          const row = todayRows.find((r) => r.currency === c);
+          const p = profit.data?.find((r) => r.currency === c);
+          return (
+            <Card key={c}>
+              <p className="text-sm text-ink-500">Today&apos;s sales ({c})</p>
+              <p className="mt-1 text-2xl font-semibold tabular-nums">{formatMoney(row?.net_sales ?? 0, c)}</p>
+              <p className="mt-1 text-xs text-ink-500">Gross profit: {formatMoney(p?.gross_profit ?? 0, c)}</p>
+            </Card>
+          );
+        })}
+        <Card><p className="text-sm text-ink-500">Transactions today</p><p className="mt-1 text-2xl font-semibold tabular-nums">{todayRows.reduce((s, r) => s + Number(r.sales_count), 0)}</p></Card>
+        <Card><p className="text-sm text-ink-500">Low stock products</p><p className="mt-1 text-2xl font-semibold tabular-nums">{(stock.data ?? []).filter((p) => Number(p.available) <= Number(p.min_stock)).length}</p></Card>
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card><h2 className="mb-3 font-semibold">Net sales, last 14 days (USD)</h2>{trend.isLoading ? <Skeleton className="h-48 w-full" /> : <div className="h-48"><ResponsiveContainer><BarChart data={trendData}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="date" fontSize={11} /><YAxis fontSize={11} width={50} /><Tooltip formatter={(v) => formatMoney(Number(v), 'USD')} /><Bar dataKey="USD" fill="#2563eb" radius={[3, 3, 0, 0]} /></BarChart></ResponsiveContainer></div>}</Card>
-        <Card><h2 className="mb-3 font-semibold">Alerts</h2>
-          <div className="space-y-3 text-sm"><div><div className="mb-1 flex items-center gap-2 font-medium">Low stock <Badge tone={low.length ? 'amber' : 'green'}>{low.length}</Badge></div>{low.slice(0, 5).map((p) => <div key={p.name} className="flex justify-between text-ink-700"><span>{p.name}</span><span>{formatQty(p.available)} left</span></div>)}</div>
-            <div><div className="mb-1 flex items-center gap-2 font-medium">Expiring within {days} days <Badge tone={expiring.length ? 'amber' : 'green'}>{expiring.length}</Badge></div>{expiring.slice(0, 5).map((p) => <div key={p.name} className="flex justify-between text-ink-700"><span>{p.name}</span><span>{p.next_expiry}</span></div>)}</div>
-            <Link to="/inventory" className="font-medium text-brand-600">Open inventory</Link></div></Card>
-        <Card><h2 className="mb-3 font-semibold">Payments today</h2>{(pay.data ?? []).length === 0 ? <p className="text-sm text-ink-500">No payments yet today.</p> : <ul className="space-y-1 text-sm">{pay.data!.map((p, i) => <li key={i} className="flex justify-between"><span>{METHOD_LABEL[p.label] ?? p.label} ({p.currency})</span><span className="font-medium">{formatMoney(p.amount, p.currency)}</span></li>)}</ul>}</Card>
-        <Card><h2 className="mb-3 font-semibold">Cashier performance today</h2>{(cashiers.data ?? []).length === 0 ? <p className="text-sm text-ink-500">No sales yet today.</p> : <ul className="space-y-1 text-sm">{cashiers.data!.map((p, i) => <li key={i} className="flex justify-between"><span>{p.label} <span className="text-ink-500">({Number(p.quantity)} sales)</span></span><span className="font-medium">{formatMoney(p.amount, p.currency)}</span></li>)}</ul>}</Card>
-        <Card><h2 className="mb-3 font-semibold">Recent sales</h2>{recent.isLoading ? <Skeleton className="h-24 w-full" /> : (recent.data ?? []).length === 0 ? <p className="text-sm text-ink-500">No sales yet.</p> : <ul className="space-y-1.5 text-sm">{recent.data!.map((s) => <li key={s.id} className="flex justify-between"><span><span className="font-mono text-xs">{s.receipt_number}</span> <span className="text-ink-500">{formatDateTime(s.created_at)}</span></span><span className="font-medium">{formatMoney(s.total, s.currency)}</span></li>)}</ul>}</Card>
-        <Card><h2 className="mb-3 font-semibold">Recent purchases</h2>{(purchases.data ?? []).length === 0 ? <p className="text-sm text-ink-500">No purchase orders yet.</p> : <ul className="space-y-1.5 text-sm">{purchases.data!.map((p) => <li key={p.id} className="flex justify-between"><span>{p.supplier?.name} <span className="text-ink-500">{p.reference ?? ''}</span></span><Badge>{p.status.replace('_', ' ')}</Badge></li>)}</ul>}</Card>
+
+      <Card>
+        <h2 className="mb-3 font-semibold">Net sales, last 14 days (USD)</h2>
+        {trend.isLoading ? <Skeleton className="h-56 w-full" /> : (
+          <div className="h-56">
+            <ResponsiveContainer>
+              <BarChart data={(trend.data ?? []).filter((r) => r.currency === 'USD')}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="period" fontSize={12} tickFormatter={(v) => String(v).slice(5)} />
+                <YAxis fontSize={12} width={50} />
+                <Tooltip formatter={(v) => formatMoney(Number(v), 'USD')} />
+                <Bar dataKey="net_sales" fill="#16a34a" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </Card>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Card>
+          <h2 className="mb-3 font-semibold">Recent sales</h2>
+          {recent.isLoading ? <Skeleton className="h-40 w-full" /> : recent.data!.length === 0 ? <p className="text-sm text-ink-500">No sales yet.</p> : (
+            <ul className="divide-y divide-slate-100 text-sm">
+              {recent.data!.map((s) => (
+                <li key={s.id} className="flex items-center justify-between py-2">
+                  <div>
+                    <span className="font-medium">{s.receipt_number}</span>
+                    <span className="ml-2 text-xs text-ink-500">{s.cashier?.full_name ?? 'Unknown'} · {formatDateTime(s.created_at)}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge tone={s.status === 'completed' ? 'green' : s.status === 'voided' ? 'red' : 'amber'}>{s.status}</Badge>
+                    <span className="font-semibold tabular-nums">{formatMoney(s.total, s.currency)}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card>
+          <h2 className="mb-3 font-semibold">Today by payment method</h2>
+          {pay.isLoading ? <Skeleton className="h-40 w-full" /> : (pay.data ?? []).length === 0 ? <p className="text-sm text-ink-500">No payments yet today.</p> : (
+            <ul className="divide-y divide-slate-100 text-sm">
+              {pay.data!.map((p) => (
+                <li key={`${p.label}-${p.currency}`} className="flex justify-between py-2">
+                  <span>{METHOD_LABEL[p.label as keyof typeof METHOD_LABEL] ?? p.label} <span className="text-xs text-ink-500">({p.quantity} sales)</span></span>
+                  <span className="font-semibold tabular-nums">{formatMoney(p.amount, p.currency)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <h2 className="mb-3 mt-5 font-semibold">Today by cashier</h2>
+          {cashiers.isLoading ? <Skeleton className="h-24 w-full" /> : (cashiers.data ?? []).length === 0 ? <p className="text-sm text-ink-500">No cashier activity yet.</p> : (
+            <ul className="divide-y divide-slate-100 text-sm">
+              {cashiers.data!.map((c) => (
+                <li key={`${c.label}-${c.currency}`} className="flex justify-between py-1.5">
+                  <span>{c.label} <span className="text-xs text-ink-500">({c.quantity} sales)</span></span>
+                  <span className="font-semibold tabular-nums">{formatMoney(c.amount, c.currency)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
       </div>
+
+      <Card>
+        <h2 className="mb-3 font-semibold">Recent purchase orders</h2>
+        {purchases.isLoading ? <Skeleton className="h-32 w-full" /> : purchases.data!.length === 0 ? <p className="text-sm text-ink-500">No purchase orders recorded.</p> : (
+          <ul className="divide-y divide-slate-100 text-sm">
+            {purchases.data!.map((p) => (
+              <li key={p.id} className="flex items-center justify-between py-2">
+                <div><span className="font-medium">{p.reference || 'PO'}</span><span className="ml-2 text-xs text-ink-500">{p.supplier?.name ?? 'No supplier'} · {formatDateTime(p.created_at)}</span></div>
+                <Badge tone={p.status === 'received' ? 'green' : p.status === 'ordered' ? 'blue' : p.status === 'draft' ? 'gray' : 'red'}>{p.status}</Badge>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
     </div>
   );
 }
@@ -91,13 +163,38 @@ function StockHome({ storeId }: { storeId: string }) {
 }
 
 export function DashboardPage() {
-  const { isSuperAdmin, activeStore, activeRole, profile } = useAuth();
+  const { isSuperAdmin, isSupportView, activeStore, activeRole, profile } = useAuth();
   return (
     <div className="mx-auto max-w-6xl space-y-5">
-      <div><h1 className="text-2xl font-semibold tracking-tight">Hello, {profile?.full_name.split(' ')[0] || 'there'}</h1>
-        <p className="mt-1 text-sm text-ink-500">{isSuperAdmin ? 'Platform overview' : activeStore ? activeStore.supermarket.name : 'No supermarket'}</p></div>
-      {isSuperAdmin ? <PlatformDashboard /> : !activeStore ? <Alert tone="info">Your account is not assigned to a supermarket yet. Ask your administrator to add you.</Alert>
-        : activeRole === 'admin' ? <AdminDashboard storeId={activeStore.supermarket_id} /> : activeRole === 'cashier' ? <CashierHome storeId={activeStore.supermarket_id} /> : <StockHome storeId={activeStore.supermarket_id} />}
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Hello, {profile?.full_name.split(' ')[0] || 'there'}</h1>
+        <p className="mt-1 text-sm text-ink-500">
+          {isSupportView && activeStore
+            ? `Support view: ${activeStore.supermarket.name}`
+            : isSuperAdmin
+              ? 'Platform overview'
+              : activeStore
+                ? activeStore.supermarket.name
+                : 'No supermarket'}
+        </p>
+      </div>
+
+      {/* Store admin banner for pending and active access grants */}
+      {!isSuperAdmin && activeRole === 'admin' && activeStore && (
+        <StoreAccessBanner storeId={activeStore.supermarket_id} />
+      )}
+
+      {isSuperAdmin && !isSupportView ? (
+        <PlatformDashboard />
+      ) : !activeStore ? (
+        <Alert tone="info">Your account is not assigned to a supermarket yet. Ask your administrator to add you.</Alert>
+      ) : activeRole === 'admin' ? (
+        <AdminDashboard storeId={activeStore.supermarket_id} />
+      ) : activeRole === 'cashier' ? (
+        <CashierHome storeId={activeStore.supermarket_id} />
+      ) : (
+        <StockHome storeId={activeStore.supermarket_id} />
+      )}
     </div>
   );
 }

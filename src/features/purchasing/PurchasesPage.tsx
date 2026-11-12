@@ -24,8 +24,8 @@ const LABEL: Record<Status, string> = { draft: 'Draft', ordered: 'Ordered', part
 
 export function PurchasesPage() {
   const storeId = useStoreId();
-  const { activeRole } = useAuth();
-  const isAdmin = activeRole === 'admin';
+  const { activeRole, isSupportView } = useAuth();
+  const isAdmin = activeRole === 'admin' && !isSupportView;
   const [editing, setEditing] = useState<PO | 'new' | null>(null);
   const [confirm, setConfirm] = useState<{ po: PO; to: 'ordered' | 'cancelled' } | null>(null);
   const q = useQuery({

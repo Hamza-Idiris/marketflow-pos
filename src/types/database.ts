@@ -22,6 +22,23 @@ export interface Membership {
   supermarket: StoreSummary;
 }
 
+export type AccessGrantStatus = 'pending' | 'approved' | 'denied' | 'revoked';
+
+export interface AccessGrant {
+  id: string;
+  supermarket_id: string;
+  requested_by: string;
+  reason: string;
+  status: AccessGrantStatus;
+  decided_by: string | null;
+  decided_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+  supermarket?: StoreSummary;
+  requester?: { id: string; full_name: string };
+  decider?: { id: string; full_name: string };
+}
+
 export type Currency = 'USD' | 'SOS';
 export type PaymentMethod = 'cash' | 'evc_plus' | 'sahal' | 'zaad';
 
